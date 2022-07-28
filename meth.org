@@ -1,0 +1,29 @@
+* Methylation Sequencing Bioinformatics :biopipe:
+** Setup
+*** TODO [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
+*** Bash preamble
+#+name: bash_preamble
+#+begin_src bash
+
+#  Note: This script is tangled from code blocks in the Emacs Org-mode file at
+#  https://github.com/jeszyman/meth/blob/master/meth.org. Changes made directly
+#  to this file will be overwritten upon tangle from Org-mode.
+
+#+end_src
+*** Snakemake configuation YAML
+#+begin_src bash
+<#bash_preamble#>
+
+threads: 4
+
+data_dir: "test"
+
+meth_script_dir: "workflow/scripts"
+container: "{HOME}/sing_containers/meth.sif"
+
+#+end_src
+*** Setup of integration testing inputs
+** cfDNA methylation sequencing analysis
+** Integration testing
+** README
+** Reference
