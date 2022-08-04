@@ -1,6 +1,7 @@
-* Methylation Sequencing Bioinformatics :biopipe:
+* Methylation Sequencing Bioinformatics                             :biopipe:
 ** Setup
-*** TODO [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
+*** DONE [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
+CLOSED: [2022-07-28 Thu 15:16]
 *** Bash preamble
 #+name: bash_preamble
 #+begin_src bash
@@ -11,19 +12,239 @@
 
 #+end_src
 *** Snakemake configuation YAML
+:PROPERTIES:
+:header-args:snakemake: :tangle ./config/int_test.yaml
+:END:
 #+begin_src bash
 <#bash_preamble#>
 
 threads: 4
-
 data_dir: "test"
-
 meth_script_dir: "workflow/scripts"
 container: "{HOME}/sing_containers/meth.sif"
+# Note bash variables like $HOME don't work e/c for container
 
 #+end_src
 *** Setup of integration testing inputs
+- Manually created files [[file:test/inputs/libraries.tsv.csv]]
+- Shell commands
+  #+begin_src bash
+# Make a truncated reference
+
+## Get hg38
+wget --directory-prefix="test/inputs/" https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+
+## Make a truncated chromosome 19
+zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 1000000 chr8 > test/inputs/chr8.fa
+
+\rm test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+
+# Get small input fastqs
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02784/CLIB02784_S1_L001_R1_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample1_R1.fastq
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02790/CLIB02790_S7_L001_R1_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample2_R1.fastq
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02785/CLIB02785_S2_L001_R1_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample3_R1.fastq
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02787/CLIB02787_S4_L001_R1_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample4_R1.fastq
+
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02784/CLIB02784_S1_L001_R2_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample1_R2.fastq
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02790/CLIB02790_S7_L001_R2_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample2_R2.fastq
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02785/CLIB02785_S2_L001_R2_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample3_R2.fastq
+zcat /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02787/CLIB02787_S4_L001_R2_001.fastq.gz |
+    head -n 6000000 > test/inputs/sample4_R2.fastq
+
+for file in "test/inputs/*.fastq"; do gzip --force $file; done
+#+end_src
 ** cfDNA methylation sequencing analysis
-** Integration testing
+*** INPROCESS [[file:./workflow/cfdna_meth.smk][Snakefile]]                                                 :smk:
+:PROPERTIES:
+:header-args:snakemake: :tangle ./workflow/cfdna_meth.smk
+:END:
+**** Smk preamble
+#+begin_src snakemake
+
+#+end_src
+**** Smk rules
+***** TODO Make biscuit index                                      :smk_rule:
+- Snakemake
+  #+begin_src snakemake
+rule biscuit_index:
+    input:
+        config["data_dir"] + "/<INPUT>",
+    params:
+        script = config["meth_script_dir"] + "/{biscuit_index}.sh",
+    output:
+        config["data_dir"] + "/<OUTPUT>",
+    log:
+        config["data_dir"] + "/logs/<INPUT ID>_biscuit_index.log",
+    shell:
+        """
+        {params.script} \
+        {input} \
+        {output} &> {log}
+        """
+#+end_src
+- [[file:./workflow/scripts/biscuit_index.sh][Shell script]]
+  #+begin_src bash :tangle ./workflow/scripts/biscuit_index.sh
+#!/usr/bin/env bash
+input=$1
+output=$2
+#+end_src
+#+begin_src bash
+singularity shell --bind /mnt:/mnt ~/sing_containers/meth.sif
+
+biscuit index test/inputs/chr8.fa
+
+mkdir test/ref
+mv test/inputs/chr8.fa.bis.ann test/ref/
+mv test/inputs/chr8.fa.bis.pac test/ref/
+mv test/inputs/chr8.fa.dau.bwt test/ref/
+mv test/inputs/chr8.fa.dau.sa test/ref/
+mv test/inputs/chr8.fa.par.bwt test/ref/
+mv test/inputs/chr8.fa.par.sa test/ref/
+
+
+#+end_src
+
+***** TODO Align to biscuit                                        :smk_rule:
+- Snakemake
+  #+begin_src snakemake
+rule biscuit_align:
+    input:
+        config["data_dir"] + "/<INPUT>",
+    params:
+        script = config["meth_script_dir"] + "/{biscuit_align}.sh",
+    output:
+        config["data_dir"] + "/<OUTPUT>",
+    log:
+        config["data_dir"] + "/logs/<INPUT ID>_biscuit_align.log",
+    shell:
+        """
+        {params.script} \
+        {input} \
+        {output} &> {log}
+        """
+#+end_src
+- [[file:./workflow/scripts/biscuit_align.sh][Shell script]]
+  #+begin_src bash :tangle ./workflow/scripts/biscuit_align.sh
+#!/usr/bin/env bash
+input=$1
+output=$2
+#+end_src
+#+begin_src bash
+singularity shell --bind /mnt:/mnt ~/sing_containers/meth.sif
+# Biscuit
+# https://huishenlab.github.io/biscuit/#getting-started
+
+# Align sequencing reads to the reference
+
+biscuit align -@ 4 test/inputs/chr8.fa test/inputs/
+
+-v 3 /mnt/ris/aadel/jeszyman/ref/biscuit_hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02784/CLIB02784_S1_L001_R1_001.fastq.gz /mnt/ris/aadel/mpnst/seq/fmi_methylation_fastqs/HW5LFDSXY/CLIB02784/CLIB02784_S1_L001_R2_001.fastq.gz | samblaster | samtools view -Sb - > /tmp/meth.out.bam" &
+
+samtools index /tmp/meth.out.bam
+
+# Create a pileup VCF of DNA methylation and genetic information
+# Also compresses and indexes the VCF
+
+# biscuit pileup -o my_pileup.vcf /path/to/my_reference.fa my_output.bam
+# bgzip my_pileup.vcf
+# tabix -p vcf my_pileup.vcf.gz
+
+biscuit pileup -o /tmp/my_pileup.vcf /mnt/ris/aadel/jeszyman/ref/biscuit_hg38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz /tmp/meth.out.bam
+
+bgzip my_pileup.vcf
+tabix -p vcf my_pileup.vcf.gz
+
+# Extract DNA methylation into BED format
+# Also compresses and indexes the BED
+biscuit vcf2bed my_pileup.vcf.gz > my_methylation_data.bed
+bgzip my_methylation_data.bed
+tabix -p bed my_methylation_data.bed.gz
+
+#+end_src
+**** Dev
+:PROPERTIES:
+:header-args:snakemake: :tangle no
+:END:
+**** Ideas
+:PROPERTIES:
+:header-args:snakemake: :tangle no
+:END:
+** TODO Integration testing
+*** [[file:workflow/int_test.smk][Snakefile]] :smk:
+:PROPERTIES:
+:header-args:snakemake: :tangle ./workflow/int_test.smk
+:END:
+**** Preamble, variable naming and functions
+#+begin_src snakemake :tangle ./workflow/int_test.smk
+
+####################################################################
+###   Integration Testing for Extracellular RNA Bioinformatics   ###
+####################################################################
+
+import pandas as pd
+import re
+container: config["container"]
+
+
+# Setup sample name index as a python dictionary
+#libraries = pd.read_table("test/inputs/libraries.tsv")
+libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
+library_indict = libraries["library"].tolist()
+file_indict = libraries["file"].tolist()
+
+file_indict=[re.sub('_R1.fastq.gz', '', i) for i in file_indict]
+
+lib_dict = dict(zip(library_indict, file_indict))
+
+LIBRARIES = list(lib_dict.keys())
+FASTQ_BASE = list(lib_dict.values())
+#+end_src
+**** All rule and other out-of-workflow rules
+#+begin_src snakemake :tangle ./workflow/int_test.smk
+
+rule all:
+    input:
+        #expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
+        #expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
+        #expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
+        #expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
+        #config["data_dir"] + "/counts/counts.tsv",
+        config["data_dir"] + "/de/de.Rdata",
+#+end_src
+**** DONE Symlink input fastqs                                        :smk_rule:
+#+begin_src snakemake
+rule symlink_inputs:
+    input:
+        lambda wildcards: lib_dict[wildcards.library],
+    output:
+        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
+    shell:
+        """
+        ln -sf --relative {input} {output}
+        """
+#+end_src
+**** Includes statements
+#+begin_src snakemake
+include: "exrna.smk"
+#+end_src
 ** README
+:PROPERTIES:
+:export_file_name: ./README.md
+:export_file_options: toc:nil
+:END:
+*** Changelog
+-
+- [2022-07-28 Thu] Repo started
 ** Reference
+https://zenodo.org/record/1205735
+** Development
+*** v2
+- add qc
+  - https://huishenlab.github.io/biscuit//docs/alignment/QC.html

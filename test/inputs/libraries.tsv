@@ -1,0 +1,5 @@
+library	file	cohort
+lib001	test/inputs/sample1_R1.fastq.gz	mpnst
+lib002	test/inputs/sample2_R1.fastq.gz	mpnst
+lib003	test/inputs/sample3_R1.fastq.gz	healthy
+lib004	test/inputs/sample4_R1.fastq.gz	healthy
