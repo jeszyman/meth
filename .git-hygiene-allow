@@ -1,0 +1,11 @@
+# Large test fixtures — intentional; needed for integration tests
+test/inputs/chr8.fa
+test/inputs/sample1_R1.fastq.gz
+test/inputs/sample1_R2.fastq.gz
+test/inputs/sample2_R1.fastq.gz
+test/inputs/sample2_R2.fastq.gz
+test/inputs/sample3_R1.fastq.gz
+test/inputs/sample3_R2.fastq.gz
+test/inputs/sample4_R1.fastq.gz
+test/inputs/sample4_R2.fastq.gz
+test/ref/chr8.fa.bis.pac
